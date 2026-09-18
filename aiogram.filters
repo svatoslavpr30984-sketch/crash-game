@@ -1,0 +1,85 @@
+import asyncio
+import os
+import logging
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import CommandStart, Command
+from aiogram.types import MenuButtonWebApp, WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
+from dotenv import load_dotenv
+
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+logging.basicConfig(level=logging.INFO)
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+
+# Посилання на твій завантажений сайт з Кроку 2
+WEB_APP_URL = "https://github.io" 
+
+@dp.message(CommandStart())
+async def cmd_start(message: types.Message):
+    await message.answer(
+        f"Привіт, {message.from_user.full_name}! 🚀\n\n"
+        "Ласкаво просимо до гри **Crash Rocket**!\n"
+        "👉 Натискай синю кнопку **App** внизу, щоб запустити ракету.\n\n"
+        "📜 Команди меню:\n"
+        "/profile — Перевірити баланс та замовити вивід\n"
+        "/deposit — Поповнити баланс через Telegram Stars"
+    )
+
+# Команда профілю та виведення зірок
+@dp.message(Command("profile"))
+async def cmd_profile(message: types.Message):
+    # Тут у майбутньому буде підключення до бази даних, поки показуємо шаблон
+    user_stars_balance = 12500  # Приклад балансу користувача
+
+    text = (
+        f"👤 **Твій Профіль:**\n"
+        f"├ Імя: {message.from_user.first_name}\n"
+        f"└ Баланс: {user_stars_balance} 🌟\n\n"
+        f"ℹ️ *Мінімальний вивід коштів становить 10,000 🌟*"
+    )
+    
+    # Кнопка виведення, яка активна тільки якщо баланс >= 10000
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[])
+    if user_stars_balance >= 10000:
+        keyboard.inline_keyboard.append([
+            InlineKeyboardButton(text="💸 Вивести кошти", callback_url="https://t.me")
+        ])
+    
+    await message.answer(text, reply_markup=keyboard, parse_mode="Markdown")
+
+# Команда для купівлі / закидування зірок в гру
+@dp.message(Command("deposit"))
+async def cmd_deposit(message: types.Message):
+    # Створення інвойсу (платіжки) для Telegram Stars
+    await message.answer_invoice(
+        title="Поповнення ігрового балансу",
+        description="Купівля 100 🌟 для гри в Crash Rocket",
+        payload="deposit_100_stars",
+        provider_token="", # Для Telegram Stars це поле залишається порожнім!
+        currency="XTR",    # Валюта Telegram Stars
+        prices=[types.LabeledPrice(label="100 Stars", amount=100)]
+    )
+
+# Підтвердження успішного платежу
+@dp.message(lambda msg: msg.successful_payment is not None)
+async def success_payment_handler(message: types.Message):
+    stars_received = message.successful_payment.total_amount
+    await message.answer(f"🎉 Баланс успішно поповнено на {stars_received} 🌟! Вдалих злетів!")
+
+async def main():
+    print("Бот запускається...")
+    
+    # Встановлюємо синю кнопку "App" біля поля введення
+    await bot.set_chat_menu_button(
+        menu_button=MenuButtonWebApp(
+            text="App",
+            web_app=WebAppInfo(url=WEB_APP_URL)
+        )
+    )
+    
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
